@@ -10,11 +10,11 @@ class OrderModel(models.Model):
     # 发布者微信名
     rel_wechat = models.CharField(max_length=50)
     # 发布时间
-    publish_time = models.DateTimeField(auto_now_add=True)
+    publish_time = models.DateTimeField()
     # 收件人姓名
     receive_name = models.CharField(max_length=40)
     # 收件人手机号
-    receive_phone = models.IntegerField()
+    receive_phone = models.CharField(max_length=11)
     # 收货地址
     receive_address = models.CharField(max_length=100)
     # 快递站点
@@ -39,3 +39,8 @@ class OrderModel(models.Model):
     taker_time = models.DateTimeField(null=True)
     # 完成时间，若取消，则为取消时间
     finish_time = models.DateTimeField(null=True)
+
+    def __str__(self):
+        return '订单id:' + str(self.order_id) + '发布者openid:' + str(self.rel_openid) + \
+               '发布者微信名:' + str(self.rel_wechat) + '发布时间:' + str(self.publish_time) + \
+            '收件人姓名:' + str(self.receive_name) + '收货地址:' + str(self.receive_address)

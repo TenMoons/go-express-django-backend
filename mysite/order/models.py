@@ -4,11 +4,13 @@ class OrderModel(models.Model):
     class Meta:
         db_table = 'tb_order'
     # 18位订单编号
-    order_id = models.BigIntegerField(primary_key=True)
+    order_id = models.CharField(primary_key=True, max_length=18)
     # 发布者openid
     rel_openid = models.CharField(max_length=50)
     # 发布者微信名
     rel_wechat = models.CharField(max_length=50)
+    # 发布者信用积分
+    rel_credit = models.IntegerField(null=True)
     # 发布时间
     publish_time = models.DateTimeField()
     # 收件人姓名
@@ -35,6 +37,8 @@ class OrderModel(models.Model):
     taker_openid = models.CharField(max_length=50, null=True)
     # 接单者微信名
     taker_wechat = models.CharField(max_length=50, null=True)
+    # 接单者信用积分
+    taker_credit = models.IntegerField(null=True)
     # 接单时间
     taker_time = models.DateTimeField(null=True)
     # 完成时间，若取消，则为取消时间
@@ -43,4 +47,5 @@ class OrderModel(models.Model):
     def __str__(self):
         return '订单id:' + str(self.order_id) + '发布者openid:' + str(self.rel_openid) + \
                '发布者微信名:' + str(self.rel_wechat) + '发布时间:' + str(self.publish_time) + \
-            '收件人姓名:' + str(self.receive_name) + '收货地址:' + str(self.receive_address)
+            '收件人姓名:' + str(self.receive_name) + '收货地址:' + str(self.receive_address) + \
+            '接单人openid:' + str(self.taker_openid) + '接单时间:' + str(self.taker_time)

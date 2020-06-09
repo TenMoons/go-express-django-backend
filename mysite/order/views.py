@@ -19,6 +19,7 @@ def getPublishOrder(request):
     express_size = request.POST.get('express_size')
     end_time = request.POST.get('end_time')
     remark = request.POST.get('remark')
+    rel_credit = request.POST.get('rel_credit')
 
     order = OrderModel()
     order.order_id = order_id
@@ -35,6 +36,7 @@ def getPublishOrder(request):
     order.end_time = end_time
     order.remark = remark
     order.order_status = 0
+    order.rel_credit = rel_credit
     # 保存到数据库表
     order.save()
     print(order)
@@ -47,7 +49,40 @@ def queryAllOrders(request):
     orders = OrderModel.objects.values().all().order_by('order_id')
     orderList = list(orders)
     orderList.reverse()
-    print(orderList)
     return JsonResponse(orderList, safe=False)
 
 
+# 接单
+def takeOrder(request):
+    id = request.POST.get('order_id')
+    taker_openid = request.POST.get('taker_openid')
+    taker_wechat = request.POST.get('taker_wechat')
+    taker_time = request.POST.get('taker_time')
+    print(id,' ', taker_openid, ' ', taker_wechat, ' ', taker_time)
+    # 根据order_id查找订单
+    order = OrderModel.objects.get(order_id=id)
+    # 修改订单状态1：已接单
+    order.order_status = 1
+    order.taker_openid = taker_openid
+    order.taker_wechat = taker_wechat
+    order.taker_time = taker_time
+    order.save()
+    print(order)
+    return HttpResponse(status=200)
+
+
+# 查询指定order_id的订单详情信息，并判断当前用户是否有查看详情的权利
+def queryOrderDetail(request):
+    id = request.GET.get('order_id')
+    user_openid = request.GET.get('user_openid')
+    # 获取该订单
+    order = OrderModel.objects.get(order_id=id)
+    if user_openid not in [order.rel_openid, order.taker_openid]:
+        return HttpResponse(content='没有查看权限', status=7000)
+    privacy = {
+        "receive_name": order.receive_name,
+        "receive_phone": order.receive_phone,
+        "express_code": order.express_code,
+    }
+    print(privacy)
+    return JsonResponse(data=privacy, safe=False, status=200)

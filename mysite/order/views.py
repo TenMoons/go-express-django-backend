@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
 from .models import OrderModel
@@ -46,7 +47,7 @@ def getPublishOrder(request):
 
 # 查询所有订单返回给前端
 def queryAllOrders(request):
-    orders = OrderModel.objects.values().all().order_by('order_id')
+    orders = OrderModel.objects.values().all().filter(~Q(order_status=-1)).filter(~Q(order_status=-2)).order_by('order_id')
     orderList = list(orders)
     orderList.reverse()
     return JsonResponse(orderList, safe=False)
@@ -58,6 +59,7 @@ def takeOrder(request):
     taker_openid = request.POST.get('taker_openid')
     taker_wechat = request.POST.get('taker_wechat')
     taker_time = request.POST.get('taker_time')
+    taker_credit = request.POST.get('taker_credit')
     print(id,' ', taker_openid, ' ', taker_wechat, ' ', taker_time)
     # 根据order_id查找订单
     order = OrderModel.objects.get(order_id=id)
@@ -66,6 +68,7 @@ def takeOrder(request):
     order.taker_openid = taker_openid
     order.taker_wechat = taker_wechat
     order.taker_time = taker_time
+    order.taker_credit = taker_credit
     order.save()
     print(order)
     return HttpResponse(status=200)
@@ -79,10 +82,46 @@ def queryOrderDetail(request):
     order = OrderModel.objects.get(order_id=id)
     if user_openid not in [order.rel_openid, order.taker_openid]:
         return HttpResponse(content='没有查看权限', status=7000)
-    privacy = {
+    identity = 0  # 默认身份为发布者(0)，1为接单者
+    if user_openid == order.taker_openid:
+        identity = 1
+    privacy = [{
         "receive_name": order.receive_name,
         "receive_phone": order.receive_phone,
         "express_code": order.express_code,
+    }, {
+        "identity": identity,
     }
+    ]
     print(privacy)
     return JsonResponse(data=privacy, safe=False, status=200)
+
+
+# 接单者确认送达
+def taker_confirm(request):
+    id = request.POST.get('order_id')
+    order = OrderModel.objects.get(order_id=id)
+    # 修改订单状态为已送达(2)
+    order.order_status = 2
+    order.save()
+    return JsonResponse(data=order.order_status, safe=False, status=200)
+
+
+# 发布者确认送达
+def rel_receipt(request):
+    id = request.POST.get('order_id')
+    order = OrderModel.objects.get(order_id=id)
+    # 修改订单状态为已完成(3)
+    order.order_status = 3
+    order.save()
+    return JsonResponse(data=order.order_status, safe=False, status=200)
+
+
+# 发布者取消订单
+def rel_cancel(request):
+    id = request.POST.get('order_id')
+    order = OrderModel.objects.get(order_id=id)
+    # 修改订单状态为发布者取消订单(-1)
+    order.order_status = -1
+    order.save()
+    return JsonResponse(data=order.order_status, safe=False, status=200)

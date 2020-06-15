@@ -31,7 +31,7 @@ class OrderModel(models.Model):
     end_time = models.DateTimeField()
     # 备注
     remark = models.CharField(max_length=200, null=True)
-    # 订单状态 0 -创建，1 -已接单，2 -已送达，3 -已完成（发布者确认送达），-1 -发布者取消，-2 -系统取消
+    # 订单状态 0 -创建, 1 -已接单, 2 -已送达, 3 -已完成（发布者确认送达）, 4 -已评价, -1 -发布者取消, -2 -系统取消
     order_status = models.IntegerField(default=0)
     # 接单者openid
     taker_openid = models.CharField(max_length=50, null=True)

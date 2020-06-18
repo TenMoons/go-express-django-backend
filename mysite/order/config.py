@@ -1,0 +1,4 @@
+QINIU_ACCESS_KEY = 'WAZxJAAc-4kCYG5HJaw-3L2rc1Kuw5Ee_jKmE6pM'
+QINIU_SECRET_KEY = 'm6ynpu89Ny9B_BJYpyZHykGTPwX7199tGvoUB6Rw'
+QINIU_BUCKET_NAME = 'ahu-go-express'
+QINIU_BUCKET_DOMAIN = 'qc2q2xid6.bkt.clouddn.com/'

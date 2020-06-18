@@ -8,6 +8,8 @@ urlpatterns = [
     path('takeOrder', views.take_order),
     path('detail', views.query_order_detail),
     path('delivery', views.taker_confirm),
+    path('token', views.get_token),
+    path('setPhoto', views.set_confirm_photo),
     path('receipt', views.rel_receipt),
     path('cancel', views.rel_cancel),
     path('evaluate_positive', views.rel_evaluate_positive),

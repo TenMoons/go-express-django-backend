@@ -43,6 +43,8 @@ class OrderModel(models.Model):
     taker_time = models.DateTimeField(null=True)
     # 完成时间，若取消，则为取消时间
     finish_time = models.DateTimeField(null=True)
+    # 送达凭证，由接单者确认送达后上传
+    confirm_photo = models.CharField(max_length=255, null=True)
 
     def __str__(self):
         return '订单id:' + str(self.order_id) + '发布者openid:' + str(self.rel_openid) + \

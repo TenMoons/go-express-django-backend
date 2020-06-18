@@ -1,7 +1,20 @@
+import base64
+import hmac
+import json
+import os
+import time
+import uuid
+import io
+from hashlib import sha1
+
+from PIL import Image
 from django.db.models import Q
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
 from .models import OrderModel
+from qiniu import Auth, put_file, etag
+import qiniu.config
+from .config import QINIU_ACCESS_KEY, QINIU_SECRET_KEY, QINIU_BUCKET_NAME
 
 
 # 接收前端提发布的代取订单
@@ -47,7 +60,8 @@ def get_publish_order(request):
 
 # 查询所有订单返回给前端
 def query_all_orders(request):
-    orders = OrderModel.objects.values().all().filter(~Q(order_status=-1)).filter(~Q(order_status=-2)).order_by('order_id')
+    orders = OrderModel.objects.values().all().filter(~Q(order_status=-1)).filter(~Q(order_status=-2)).order_by(
+        'order_id')
     orderList = list(orders)
     orderList.reverse()
     return JsonResponse(orderList, safe=False)
@@ -60,7 +74,7 @@ def take_order(request):
     taker_wechat = request.POST.get('taker_wechat')
     taker_time = request.POST.get('taker_time')
     taker_credit = request.POST.get('taker_credit')
-    print(id,' ', taker_openid, ' ', taker_wechat, ' ', taker_time)
+    print(id, ' ', taker_openid, ' ', taker_wechat, ' ', taker_time)
     # 根据order_id查找订单
     order = OrderModel.objects.get(order_id=id)
     # 修改订单状态1：已接单
@@ -79,22 +93,26 @@ def query_order_detail(request):
     id = request.GET.get('order_id')
     user_openid = request.GET.get('user_openid')
     # 获取该订单
-    order = OrderModel.objects.get(order_id=id)
-    if user_openid not in [order.rel_openid, order.taker_openid]:
-        return HttpResponse(content='没有查看权限', status=7000)
-    identity = 0  # 默认身份为发布者(0)，1为接单者
-    if user_openid == order.taker_openid:
-        identity = 1
-    privacy = [{
-        "receive_name": order.receive_name,
-        "receive_phone": order.receive_phone,
-        "express_code": order.express_code,
-    }, {
-        "identity": identity,
-    }
-    ]
-    print(privacy)
-    return JsonResponse(data=privacy, safe=False, status=200)
+    order = list(OrderModel.objects.values().all().filter(order_id=id))
+    print(order)
+    # if user_openid not in [order[0].rel_openid, order[0].taker_openid]:
+    #     order[0].receive_name = '*' * len(order[0].receive_name)
+    #     order[0].receive_phone = '*' * len(order[0].receive_phone)
+    #     order[0].express_code = '*' * len(order[0].express_code)
+    #     return JsonResponse(data=order, safe=False, status=201)
+    # identity = 0  # 默认身份为发布者(0)，1为接单者
+    # if user_openid == order.taker_openid:
+    #     identity = 1
+    # privacy = [{
+    #     "receive_name": order.receive_name,
+    #     "receive_phone": order.receive_phone,
+    #     "express_code": order.express_code,
+    # }, {
+    #     "identity": identity,
+    # }
+    # ]
+    # print(privacy)
+    return JsonResponse(data=order, safe=False, status=200)
 
 
 # 接单者确认送达
@@ -140,7 +158,7 @@ def rel_evaluate_positive(request):
     order.save()
     ret = [{
         "order_status": order.order_status,
-        "credit" : order.rel_credit
+        "credit": order.rel_credit
     }]
     return JsonResponse(data=ret, safe=False, status=200)
 
@@ -159,27 +177,26 @@ def rel_evaluate_negative(request):
 # 查询当前用户全部订单
 def query_my_all_orders(request):
     user_id = request.GET.get('user_openid')
-    existorders = OrderModel.objects.values().all().filter(order_status__gte = '0')   #过滤已被取消的订单
-    myorders_rel = existorders.filter(rel_openid=user_id ).order_by('order_id')#filter(rel_openid=user_id )all()
-    myorders_tak = existorders.filter(taker_openid = user_id).order_by('order_id')
+    existorders = OrderModel.objects.values().all().filter(order_status__gte='0')  # 过滤已被取消的订单
+    myorders_rel = existorders.filter(rel_openid=user_id).order_by('order_id')  # filter(rel_openid=user_id )all()
+    myorders_tak = existorders.filter(taker_openid=user_id).order_by('order_id')
     myorderList = list(myorders_rel)
     for item in myorders_tak:
         myorderList.append(item)
-    #myorderList.append(myorders_tak)
+    # myorderList.append(myorders_tak)
     myorderList.reverse()
     print(myorderList)
     print(user_id)
     return JsonResponse(myorderList, safe=False)
 
 
-
 # 查询当前用户接收的订单
 def query_my_take(request):
     user_id = request.GET.get('user_openid')
     existorders = OrderModel.objects.values().all().filter(order_status__gte='0')  # 过滤已被取消的订单
-    myorders_tak = existorders.filter(taker_openid = user_id).order_by('order_id')#filter(taker_openid = user_id)all()
+    myorders_tak = existorders.filter(taker_openid=user_id).order_by('order_id')  # filter(taker_openid = user_id)all()
     takeorderList = list(myorders_tak)
-    #myorderList.append(myorders_tak)
+    # myorderList.append(myorders_tak)
     takeorderList.reverse()
     print(takeorderList)
     print(user_id)
@@ -189,10 +206,11 @@ def query_my_take(request):
 # 查询当前用户待派送订单
 def query_my_send(request):
     user_id = request.GET.get('user_openid')
-    myorders_rel = OrderModel.objects.values().filter(rel_openid=user_id ).order_by('order_id')  #filter(rel_openid=user_id )all()
-    myorders_tbs = myorders_rel.filter(order_status = '1').order_by('order_id')
+    myorders_rel = OrderModel.objects.values().filter(rel_openid=user_id).order_by(
+        'order_id')  # filter(rel_openid=user_id )all()
+    myorders_tbs = myorders_rel.filter(order_status='1').order_by('order_id')
     tbsorderList = list(myorders_tbs)
-    #myorderList.append(myorders_tak)
+    # myorderList.append(myorders_tak)
     tbsorderList.reverse()
     print(tbsorderList)
     print(user_id)
@@ -202,10 +220,11 @@ def query_my_send(request):
 # 查询当前用户待收货订单
 def query_my_receive(request):
     user_id = request.GET.get('user_openid')
-    myorders_rel = OrderModel.objects.values().filter(rel_openid=user_id ).order_by('order_id')  #filter(rel_openid=user_id )all()
-    myorders_tbr = myorders_rel.filter(order_status = '2').order_by('order_id')
+    myorders_rel = OrderModel.objects.values().filter(rel_openid=user_id).order_by(
+        'order_id')  # filter(rel_openid=user_id )all()
+    myorders_tbr = myorders_rel.filter(order_status='2').order_by('order_id')
     tbrorderList = list(myorders_tbr)
-    #myorderList.append(myorders_tak)
+    # myorderList.append(myorders_tak)
     tbrorderList.reverse()
     print(tbrorderList)
     print(user_id)
@@ -215,10 +234,11 @@ def query_my_receive(request):
 # 查询当前用户已完成订单
 def query_my_finish(request):
     user_id = request.GET.get('user_openid')
-    myorders_rel = OrderModel.objects.values().filter(rel_openid=user_id ).order_by('order_id')  #filter(rel_openid=user_id )all()
-    myorders_fin = myorders_rel.filter(order_status = '3').order_by('order_id')
+    myorders_rel = OrderModel.objects.values().filter(rel_openid=user_id).order_by(
+        'order_id')  # filter(rel_openid=user_id )all()
+    myorders_fin = myorders_rel.filter(order_status='3').order_by('order_id')
     finorderList = list(myorders_fin)
-    #myorderList.append(myorders_tak)
+    # myorderList.append(myorders_tak)
     finorderList.reverse()
     print(finorderList)
     print(user_id)
@@ -228,10 +248,11 @@ def query_my_finish(request):
 # 查询当前用户发布的订单(未被接收,我发布的）
 def query_my_publish(request):
     user_id = request.GET.get('user_openid')
-    myorders_rel = OrderModel.objects.values().filter(rel_openid = user_id).order_by('order_id')#filter(rel_openid = user_id)all()
+    myorders_rel = OrderModel.objects.values().filter(rel_openid=user_id).order_by(
+        'order_id')  # filter(rel_openid = user_id)all()
     myorders_tbtak = myorders_rel.filter(order_status='0').order_by('order_id')
     relorderList = list(myorders_tbtak)
-    #myorderList.append(myorders_tak)
+    # myorderList.append(myorders_tak)
     relorderList.reverse()
     print(relorderList)
     print(user_id)
@@ -243,18 +264,44 @@ def query_my_order_count(request):
     user_id = request.GET.get('user_openid')
     # 订单状态 0 -创建, 1 -已接单, 2 -已送达, 3 -已完成（发布者确认送达）, 4 -已评价, -1 -发布者取消, -2 -系统取消
     countList = []
-    myorders_rel = OrderModel.objects.values().filter(rel_openid=user_id )
-    myorders_tbs = list(myorders_rel.filter(order_status = '1'))
-    countList.append(len(myorders_tbs))  #待派送
-    #print(len(myorders_tbs))
+    myorders_rel = OrderModel.objects.values().filter(rel_openid=user_id)
+    myorders_tbs = list(myorders_rel.filter(order_status='1'))
+    countList.append(len(myorders_tbs))  # 待派送
+    # print(len(myorders_tbs))
     myorders_tbr = list(myorders_rel.filter(order_status='2'))
-    countList.append(len(myorders_tbr))  #待收货
-    #myorders_fin = list(myorders_rel.filter(order_status='3'))
-    #countList.append(len(myorders_fin))
-    myorders_tak = list(OrderModel.objects.values().filter(taker_openid = user_id).order_by('order_id'))#filter(taker_openid = user_id)all()
-    countList.append(len(myorders_tak))  #我接收的
+    countList.append(len(myorders_tbr))  # 待收货
+    # myorders_fin = list(myorders_rel.filter(order_status='3'))
+    # countList.append(len(myorders_fin))
+    myorders_tak = list(OrderModel.objects.values().filter(taker_openid=user_id).order_by(
+        'order_id'))  # filter(taker_openid = user_id)all()
+    countList.append(len(myorders_tak))  # 我接收的
     myorderList = list(myorders_rel.filter(order_status='0'))
-    countList.append(len(myorderList))  #已创建
+    countList.append(len(myorderList))  # 已创建
     print(countList)
     print(user_id)
     return JsonResponse(countList, safe=False)
+
+
+# 返回upload file token
+def get_token(request):
+    data = {"scope": QINIU_BUCKET_NAME}
+    exp_time = int(time.time()) + 3600 # 3600为过期时间，即1小时
+    data["deadline"] = exp_time
+    s = json.JSONEncoder().encode(data).encode("utf-8")
+    encoded = base64.b64encode(s)
+    encoded_sign = base64.b64encode(hmac.new(QINIU_SECRET_KEY.encode("utf-8"), encoded, sha1).digest()).decode("utf-8")
+    token = {
+        "uptoken": QINIU_ACCESS_KEY + ":" + encoded_sign + ":" + encoded.decode("utf-8")}
+    print(token)
+    return JsonResponse(token, status=200, safe=False)
+
+
+# 设置订单送达凭证
+def set_confirm_photo(request):
+    url = request.POST.get('url')
+    id = request.POST.get('order_id')
+    print(url)
+    order = OrderModel.objects.get(order_id=id)
+    order.confirm_photo = url
+    order.save()
+    return HttpResponse(status=200)

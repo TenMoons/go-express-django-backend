@@ -94,25 +94,14 @@ def query_order_detail(request):
     user_openid = request.GET.get('user_openid')
     # 获取该订单
     order = list(OrderModel.objects.values().all().filter(order_id=id))
+    thisOrder = order[0]
     print(order)
-    # if user_openid not in [order[0].rel_openid, order[0].taker_openid]:
-    #     order[0].receive_name = '*' * len(order[0].receive_name)
-    #     order[0].receive_phone = '*' * len(order[0].receive_phone)
-    #     order[0].express_code = '*' * len(order[0].express_code)
-    #     return JsonResponse(data=order, safe=False, status=201)
-    # identity = 0  # 默认身份为发布者(0)，1为接单者
-    # if user_openid == order.taker_openid:
-    #     identity = 1
-    # privacy = [{
-    #     "receive_name": order.receive_name,
-    #     "receive_phone": order.receive_phone,
-    #     "express_code": order.express_code,
-    # }, {
-    #     "identity": identity,
-    # }
-    # ]
-    # print(privacy)
-    return JsonResponse(data=order, safe=False, status=200)
+    if user_openid not in [thisOrder['rel_openid'], thisOrder['taker_openid']]:
+        thisOrder['receive_name'] = '*' * len(thisOrder['receive_name'])
+        thisOrder['receive_phone'] = '*' * len(thisOrder['receive_phone'])
+        thisOrder['express_code'] = '*' * len(thisOrder['express_code'])
+        return JsonResponse(data=order, safe=False, status=201)
+    return JsonResponse(data=list(order), safe=False, status=200)
 
 
 # 接单者确认送达
@@ -303,5 +292,6 @@ def set_confirm_photo(request):
     print(url)
     order = OrderModel.objects.get(order_id=id)
     order.confirm_photo = url
+    order.order_status = 2 # 已送达
     order.save()
     return HttpResponse(status=200)

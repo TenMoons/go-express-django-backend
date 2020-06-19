@@ -29,13 +29,8 @@ def updateUserInfo(openid, stu_id):
     user.save()
 
 
-'''
-学生身份认证,接收前端传递的数据
-'''
-
-
+# 学生身份认证,接收前端传递的数据
 def auth(request):
-    # TODO : 更新用户表的认证状态
     openid = request.POST.get('openid')
     stu_id = request.POST.get('id')
     cur_student = findById(stu_id)

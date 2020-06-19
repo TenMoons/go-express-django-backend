@@ -6,8 +6,10 @@ from .config import APPID, SECRET
 
 # 根据openid查找用户信息
 def findByOpenid(id):
-    user = UserModel.objects.get(openid=id)
-    return user
+    user = UserModel.objects.filter(openid=id)
+    if len(user) == 0:
+        return None
+    return user[0]
 
 
 # 根据openid获取信用值
@@ -35,10 +37,6 @@ def get_openid(request):
 
     # 查询用户是否已存在
     user = findByOpenid(openid)
-    data = {
-        "openid": openid,
-        "credit": user.credit
-    }
     # 向数据库表中增加数据
     if user is None:
         new_user = UserModel()
@@ -48,5 +46,10 @@ def get_openid(request):
         data = {
             "openid": openid,
             "credit": new_user.credit
+        }
+    else:
+        data = {
+            "openid": openid,
+            "credit": user.credit
         }
     return JsonResponse(data, safe=False, status=200)

@@ -1,20 +1,16 @@
 import base64
+import datetime
 import hmac
 import json
-import os
 import time
-import uuid
-import io
 from hashlib import sha1
 
-from PIL import Image
 from django.db.models import Q
-from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
-from .models import OrderModel
-from qiniu import Auth, put_file, etag
-import qiniu.config
+
 from .config import QINIU_ACCESS_KEY, QINIU_SECRET_KEY, QINIU_BUCKET_NAME
+from .models import OrderModel
+from qiniu import Auth
 
 
 # 接收前端提发布的代取订单
@@ -60,10 +56,18 @@ def get_publish_order(request):
 
 # 查询所有订单返回给前端
 def query_all_orders(request):
+    all_orders = OrderModel.objects.all()
+    print(all_orders)
+    current_time = datetime.datetime.now()
+    for o in all_orders:
+        if o.end_time < current_time:
+            o.order_status = -1  # 超时无人接单，系统自动取消
+            o.save()
     orders = OrderModel.objects.values().all().filter(~Q(order_status=-1)).filter(~Q(order_status=-2)).order_by(
         'order_id')
     orderList = list(orders)
     orderList.reverse()
+    print(orderList)
     return JsonResponse(orderList, safe=False)
 
 
@@ -273,14 +277,13 @@ def query_my_order_count(request):
 
 # 返回upload file token
 def get_token(request):
-    data = {"scope": QINIU_BUCKET_NAME}
-    exp_time = int(time.time()) + 3600 # 3600为过期时间，即1小时
-    data["deadline"] = exp_time
-    s = json.JSONEncoder().encode(data).encode("utf-8")
-    encoded = base64.b64encode(s)
-    encoded_sign = base64.b64encode(hmac.new(QINIU_SECRET_KEY.encode("utf-8"), encoded, sha1).digest()).decode("utf-8")
-    token = {
-        "uptoken": QINIU_ACCESS_KEY + ":" + encoded_sign + ":" + encoded.decode("utf-8")}
+    q = Auth(QINIU_ACCESS_KEY, QINIU_SECRET_KEY)
+    my_policy = {
+        'scope': QINIU_BUCKET_NAME,
+        'deadline': 3600,
+    }
+    token = q.upload_token(QINIU_BUCKET_NAME, key=None,
+                           expires=3600, policy=my_policy)
     print(token)
     return JsonResponse(token, status=200, safe=False)
 

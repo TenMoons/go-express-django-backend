@@ -28,6 +28,11 @@ def updateUserInfo(openid, stu_id):
     print(user)
     user.save()
 
+# 该用户是否认证
+def findByOpenid(openid):
+    user = UserModel.objects.get(openid=openid)
+    return user.auth_status == 1
+
 
 # 学生身份认证,接收前端传递的数据
 def auth(request):
@@ -36,7 +41,9 @@ def auth(request):
     cur_student = findById(stu_id)
     # 判断是否重复认证
     if cur_student.auth_status == 1:
-        return HttpResponse(content='请勿重复认证', status=400)
+        return HttpResponse(content='该学号已被绑定!', status=400)
+    if findByOpenid(openid):
+        return HttpResponse(content='请勿重复认证!', status=400)
     # 更新学生表认证状态
     updateAuthStatus(stu_id)
     updateUserInfo(openid, stu_id)

@@ -60,7 +60,7 @@ def query_all_orders(request):
     print(all_orders)
     current_time = datetime.datetime.now()
     for o in all_orders:
-        if o.end_time < current_time:
+        if o.end_time < current_time and o.order_status == 0:
             o.order_status = -1  # 超时无人接单，系统自动取消
             o.save()
     orders = OrderModel.objects.values().all().filter(~Q(order_status=-1)).filter(~Q(order_status=-2)).order_by(
